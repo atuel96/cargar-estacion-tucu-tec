@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-def load_year_files(year : int, datafolder : str | Path):
+def read_year_files(year : int, datafolder : str | Path):
     year_str = str(year)[-2:]
     datafolder = Path(datafolder)
     datafiles = [file for file in datafolder.iterdir() if file.is_file() and file.suffix == f".{year_str}A"]
@@ -12,7 +12,7 @@ def load_year_files(year : int, datafolder : str | Path):
     #for file in datafiles:
     #    print(file)
 
-def filter_values(filepath : str | Path):
+def load_and_process_file(filepath : str | Path):
     df = pd.read_csv(filepath, sep=" ", header=None, usecols=[0, 1, 7], names=["seconds", "alpha", "TEC"])
     df_vTEC = df.query("alpha == 'Z00'")
 
@@ -36,7 +36,9 @@ def filter_values(filepath : str | Path):
     merged_df.sort_values('seconds', inplace=True)
     merged_df.reset_index(drop=True, inplace=True)
 
-    return merged_df[["seconds", "TEC"]]
+    # Delete duplicates
+    #n_duplicated_values = merged_df.duplicated().sum()
+    return merged_df[["seconds", "TEC"]].drop_duplicates()
 
 
 
