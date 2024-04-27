@@ -2,17 +2,15 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-def read_year_files(year : int, datafolder : str | Path):
+def get_year_files(year : int, datafolder : str | Path):
     year_str = str(year)[-2:]
     datafolder = Path(datafolder)
     datafiles = [file for file in datafolder.iterdir() if file.is_file() and file.suffix == f".{year_str}A"]
     datafiles.sort()
 
     return datafiles
-    #for file in datafiles:
-    #    print(file)
 
-def load_and_process_file(filepath : str | Path):
+def read_and_process_file(filepath : str | Path):
     df = pd.read_csv(filepath, sep=" ", header=None, usecols=[0, 1, 7], names=["seconds", "alpha", "TEC"])
     df_vTEC = df.query("alpha == 'Z00'")
 
@@ -20,7 +18,7 @@ def load_and_process_file(filepath : str | Path):
     negative_TEC = df_vTEC["TEC"][df_vTEC["TEC"] < 0] 
     negative_values = negative_TEC.count()
     if negative_values:
-        df_vTEC["TEC"][df_vTEC["TEC"] < 0] = None
+        df_vTEC.loc[df_vTEC["TEC"] < 0, "TEC"] = None
         print(f"{negative_values} TEC negative values were replaced by NaNs for file {filepath}.") # Info
     
     # Fill non-existing values with Nan
@@ -40,9 +38,26 @@ def load_and_process_file(filepath : str | Path):
     #n_duplicated_values = merged_df.duplicated().sum()
     return merged_df[["seconds", "TEC"]].drop_duplicates()
 
+def load_year_data(year : int, datafolder : str | Path) -> pd.DataFrame:
+    
+    year_files = get_year_files(year, datafolder)
+
+    # read year files
+    DOY_index_start = -7
+    DOY_index_end = -4
+    year_df = pd.DataFrame() # Initialize
+
+    for year_file in year_files:
+        day_df = read_and_process_file(year_file)
+        DOY = int(year_file.name[DOY_index_start:DOY_index_end])
+        day_df["DOY"] = DOY
+        day_df["Year"] = year
+
+        year_df = pd.concat([year_df, day_df])
+    return year_df
+
 
 
 
 if __name__ == "__main__":
-    #load_year_files(2017, "tucu")
     ...
