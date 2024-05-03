@@ -34,7 +34,10 @@ def get_year_files(year: int, datafolder: str | Path):
     return datafiles
 
 
-def read_and_process_file(filepath: str | Path):
+def read_and_process_file(
+    filepath: str | Path,
+    load_with_polars=True,
+):
     """
     Parameters
     ----------
@@ -45,13 +48,22 @@ def read_and_process_file(filepath: str | Path):
     -------
     DataFrame : Pandas Dataframe with 'seconds' & 'TEC' columns.
     """
-    df = pd.read_csv(
-        filepath,
-        sep=" ",
-        header=None,
-        usecols=[0, 1, 7],
-        names=["seconds", "alpha", "TEC"],
-    )
+    if load_with_polars:
+        df = pl.read_csv(
+            filepath,
+            separator=" ",
+            has_header=False,
+            columns=[0, 1, 7],
+        ).to_pandas()
+        df.columns = ["seconds", "alpha", "TEC"]
+    else:
+        df = pd.read_csv(
+            filepath,
+            sep=" ",
+            header=None,
+            usecols=[0, 1, 7],
+            names=["seconds", "alpha", "TEC"],
+        )
     df_vTEC = df.query("alpha == 'Z00'")  # take just vTEC
 
     # Delete duplicates
@@ -81,7 +93,9 @@ def read_and_process_file(filepath: str | Path):
     complete_seconds = pd.Series(np.arange(0, total_seconds_1_day + 1, step_size))
 
     # Create a DataFrame with the complete range of seconds
-    complete_df = pd.DataFrame({"seconds": complete_seconds})
+    complete_df = pd.DataFrame(
+        {"seconds": complete_seconds[:-1]}  # drop the last second
+    )
     merged_df = pd.merge(complete_df, df_vTEC, on="seconds", how="left")
     merged_df.sort_values("seconds", inplace=True)
     merged_df.reset_index(drop=True, inplace=True)
@@ -89,7 +103,9 @@ def read_and_process_file(filepath: str | Path):
     return merged_df[["seconds", "TEC"]]
 
 
-def load_year_data(year: int, datafolder: str | Path) -> pd.DataFrame:
+def load_year_data(
+    year: int, datafolder: str | Path, load_with_polars=True
+) -> pd.DataFrame:
     """
     Parameters
     ----------
@@ -98,6 +114,9 @@ def load_year_data(year: int, datafolder: str | Path) -> pd.DataFrame:
 
     datafolder : str | Path
         The path of the folder where the year files are located.
+
+    load_with_polars : bool
+        if True then it uses polars library for reading files (~40% less time).
 
     Returns
     -------
@@ -112,7 +131,7 @@ def load_year_data(year: int, datafolder: str | Path) -> pd.DataFrame:
     year_df = pd.DataFrame()  # Initialize
 
     for year_file in year_files:
-        day_df = read_and_process_file(year_file)
+        day_df = read_and_process_file(year_file, load_with_polars)
         DOY = int(year_file.name[DOY_index_start:DOY_index_end])
         day_df["DOY"] = DOY
         day_df["Year"] = year
@@ -122,4 +141,15 @@ def load_year_data(year: int, datafolder: str | Path) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    ...
+    year = 2000
+    datafolder = Path("tucu/")
+    df = load_year_data(year, datafolder)
+
+    DOYs = df.DOY.unique()
+    print("DOYs size :", DOYs.size)
+    print(DOYs.min(), DOYs.max())
+    for day in range(1, DOYs.max()):
+        if not day in DOYs:
+            print(day)
+
+    # print(df[df["DOY"] == 125])
