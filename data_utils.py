@@ -4,8 +4,7 @@ from pathlib import Path
 import polars as pl
 
 import logging
-
-print()
+from datetime import datetime, timedelta
 
 
 def get_year_files(year: int, datafolder: str | Path):
@@ -146,6 +145,11 @@ def load_year_data(
 
     # fill missing days (only if there are missing days)
     year_df = fill_missing_days(year_df)
+
+    # sort
+    year_df.sort_values(["DOY", "seconds"], inplace=True)
+    year_df["datetime"] = create_datetimes(year_df)
+    year_df.set_index("datetime", inplace=True)
     return year_df
 
 
@@ -167,8 +171,26 @@ def fill_missing_days(df: pd.DataFrame):
             df_day["DOY"] = day
             temp_df = pd.merge(temp_df, df_day, how="outer", on=["DOY", "seconds"])
 
-    # print("len temp_df", len(temp_df))
     return temp_df
+
+
+def DOY_to_datetime(year, DOY, seconds=0):
+    return datetime.strptime(f"{year}-{DOY}", "%Y-%j") + timedelta(0, seconds)
+
+
+def create_datetimes(df):
+
+    delta_t = int(abs(df.seconds.diff(1)).min())
+    year = int(df["year"][0])
+    DOY_start = int(df["DOY"].min())
+    DOY_end = int(df["DOY"].max())
+    seconds_start = int(df.loc[df["DOY"] == DOY_start, "seconds"].min())
+    seconds_end = int(df.loc[df["DOY"] == DOY_end, "seconds"].max())
+
+    start_date = DOY_to_datetime(year, DOY_start, seconds_start)
+    end_date = DOY_to_datetime(year, DOY_end, seconds_end)
+
+    return pd.date_range(start_date, end_date, freq=timedelta(0, delta_t))
 
 
 if __name__ == "__main__":
