@@ -87,20 +87,26 @@ def read_and_process_file(
     delta_t = int(df_vTEC.diff(1)["seconds"].mode()[0])
 
     # Fill non-existing values with Nan
+    # Create a DataFrame with the complete range of seconds
+    complete_df = create_seconds_df(delta_t=delta_t)
+    merged_df = pd.merge(complete_df, df_vTEC, on="seconds", how="left")
+    merged_df.sort_values("seconds", inplace=True)
+    merged_df.reset_index(drop=True, inplace=True)
+
+    return merged_df[["seconds", "TEC"]]
+
+
+def create_seconds_df(delta_t):
+    """
+    create a DataFrame with only sencods from 1 day
+    """
     total_seconds_1_day = 86400  # 1 day in seconds
     num_steps = round(total_seconds_1_day / delta_t)  # 5760 if delta_t = 15s
     step_size = round(total_seconds_1_day / num_steps)
     complete_seconds = pd.Series(np.arange(0, total_seconds_1_day + 1, step_size))
 
     # Create a DataFrame with the complete range of seconds
-    complete_df = pd.DataFrame(
-        {"seconds": complete_seconds[:-1]}  # drop the last second
-    )
-    merged_df = pd.merge(complete_df, df_vTEC, on="seconds", how="left")
-    merged_df.sort_values("seconds", inplace=True)
-    merged_df.reset_index(drop=True, inplace=True)
-
-    return merged_df[["seconds", "TEC"]]
+    return pd.DataFrame({"seconds": complete_seconds[:-1]})  # drop the last second
 
 
 def load_year_data(
@@ -141,7 +147,7 @@ def load_year_data(
 
 
 if __name__ == "__main__":
-    year = 2000
+    year = 2017
     datafolder = Path("tucu/")
     df = load_year_data(year, datafolder)
 
@@ -151,5 +157,9 @@ if __name__ == "__main__":
     for day in range(1, DOYs.max()):
         if not day in DOYs:
             print(day)
+
+    print("len df", len(df))
+
+    # make dts
 
     # print(df[df["DOY"] == 125])
