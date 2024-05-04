@@ -95,7 +95,7 @@ def read_and_process_file(
     return merged_df[["seconds", "TEC"]]
 
 
-def create_seconds_df(delta_t):
+def create_seconds_df(delta_t: int) -> pd.DataFrame:
     """
     create a DataFrame with only sencods from 1 day
     """
@@ -153,7 +153,11 @@ def load_year_data(
     return year_df
 
 
-def fill_missing_days(df: pd.DataFrame):
+def fill_missing_days(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fill missing days in df.
+    Only fills days in beetween.
+    """
     DOYs = df.DOY.unique()
 
     if DOYs.max() - DOYs.min() == DOYs.size - 1:
@@ -161,7 +165,7 @@ def fill_missing_days(df: pd.DataFrame):
 
     temp_df = df.copy()
     delta_t = int(abs(df.seconds.diff(1)).min())
-    year = df["year"][0]
+    year = int(df["year"][0])
     for day in range(1, DOYs.max()):
         if not day in DOYs:
             df_day = create_seconds_df(delta_t)
@@ -174,11 +178,38 @@ def fill_missing_days(df: pd.DataFrame):
     return temp_df
 
 
-def DOY_to_datetime(year, DOY, seconds=0):
+def DOY_to_datetime(year: int, DOY: int, seconds: int = 0) -> datetime:
+    """
+    Parameters
+    ----------
+    year : int
+        the year is important because of leap years.
+
+    DOY : int
+        Day of the Year.
+
+    seconds : Optional[int]
+
+    Returns
+    -------
+    datetime
+
+    """
     return datetime.strptime(f"{year}-{DOY}", "%Y-%j") + timedelta(0, seconds)
 
 
-def create_datetimes(df):
+def create_datetimes(df: pd.DataFrame):
+    """
+    Create a DatetimeIndex with datetimes ranging from initial day to last day in df.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    DatetimeIndex
+    """
 
     delta_t = int(abs(df.seconds.diff(1)).min())
     year = int(df["year"][0])
