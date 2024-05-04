@@ -140,14 +140,39 @@ def load_year_data(
         day_df = read_and_process_file(year_file, load_with_polars)
         DOY = int(year_file.name[DOY_index_start:DOY_index_end])
         day_df["DOY"] = DOY
-        day_df["Year"] = year
+        day_df["year"] = year
 
         year_df = pd.concat([year_df, day_df])
+
+    # fill missing days (only if there are missing days)
+    year_df = fill_missing_days(year_df)
     return year_df
 
 
+def fill_missing_days(df: pd.DataFrame):
+    DOYs = df.DOY.unique()
+
+    if DOYs.max() - DOYs.min() == DOYs.size - 1:
+        return df
+
+    temp_df = df.copy()
+    delta_t = int(abs(df.seconds.diff(1)).min())
+    year = df["year"][0]
+    for day in range(1, DOYs.max()):
+        if not day in DOYs:
+            df_day = create_seconds_df(delta_t)
+            logging.info(
+                f"Day {day} filled with NaNs for year {year} because it was missing."
+            )
+            df_day["DOY"] = day
+            temp_df = pd.merge(temp_df, df_day, how="outer", on=["DOY", "seconds"])
+
+    # print("len temp_df", len(temp_df))
+    return temp_df
+
+
 if __name__ == "__main__":
-    year = 2017
+    year = 2000
     datafolder = Path("tucu/")
     df = load_year_data(year, datafolder)
 
@@ -156,10 +181,11 @@ if __name__ == "__main__":
     print(DOYs.min(), DOYs.max())
     for day in range(1, DOYs.max()):
         if not day in DOYs:
-            print(day)
+            print("FALTA", day)
 
     print("len df", len(df))
+    # print(df[df["DOY"] == 1])
 
     # make dts
 
-    # print(df[df["DOY"] == 125])
+    print(df[df["DOY"] == 125])
