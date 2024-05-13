@@ -212,7 +212,7 @@ def create_datetimes(df: pd.DataFrame):
     """
 
     delta_t = int(abs(df.seconds.diff(1)).min())
-    year = int(df["year"][0])
+    year = int(df.iloc[0, df.columns.get_loc("year")])
     DOY_start = int(df["DOY"].min())
     DOY_end = int(df["DOY"].max())
     seconds_start = int(df.loc[df["DOY"] == DOY_start, "seconds"].min())
