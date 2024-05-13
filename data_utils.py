@@ -43,6 +43,9 @@ def read_and_process_file(
     filepath : str | Path
         Path of the file.
 
+    load_with_polars : bool
+        if True then it uses polars library for reading files (~40% less time).
+
     Returns
     -------
     DataFrame : Pandas Dataframe with 'seconds' & 'TEC' columns.
