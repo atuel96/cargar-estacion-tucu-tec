@@ -165,7 +165,7 @@ def fill_missing_days(df: pd.DataFrame) -> pd.DataFrame:
 
     temp_df = df.copy()
     delta_t = int(abs(df.seconds.diff(1)).min())
-    year = int(df["year"][0])
+    year = int(df.iloc[0, df.columns.get_loc("year")])
     for day in range(1, DOYs.max()):
         if not day in DOYs:
             df_day = create_seconds_df(delta_t)
