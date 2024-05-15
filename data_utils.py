@@ -2,12 +2,15 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import polars as pl
+import matplotlib.pyplot as plt
 
 import logging
 from datetime import datetime, timedelta
+import gc
 
 
-def get_year_files(year: int, datafolder: str | Path):
+
+def get_tec_year_files(year: int, datafolder: str | Path):
     """
     Parameters
     ----------
@@ -33,7 +36,7 @@ def get_year_files(year: int, datafolder: str | Path):
     return datafiles
 
 
-def read_and_process_file(
+def read_and_process_tec_file(
     filepath: str | Path,
     load_with_polars=True,
 ):
@@ -76,7 +79,6 @@ def read_and_process_file(
     df_vTEC = df_vTEC.loc[:, ["seconds", "TEC"]].drop_duplicates()
 
     # Look for negative TEC values
-    # negative_TEC = df_vTEC["TEC"][df_vTEC["TEC"] < 0]
     negative_TEC = df_vTEC.loc[df_vTEC["TEC"] < 0, "TEC"]
     negative_values = negative_TEC.count()
     if negative_values:
@@ -111,7 +113,7 @@ def create_seconds_df(delta_t: int) -> pd.DataFrame:
     return pd.DataFrame({"seconds": complete_seconds[:-1]})  # drop the last second
 
 
-def load_year_data(
+def load_tec_data(
     year: int, datafolder: str | Path, load_with_polars=True
 ) -> pd.DataFrame:
     """
@@ -131,7 +133,7 @@ def load_year_data(
     DataFrame : Pandas Dataframe with 'year', 'DOY', 'seconds' & 'TEC' columns.
     """
 
-    year_files = get_year_files(year, datafolder)
+    year_files = get_tec_year_files(year, datafolder)
 
     # read year files
     DOY_index_start = -7
@@ -139,7 +141,7 @@ def load_year_data(
     year_df = pd.DataFrame()  # Initialize
 
     for year_file in year_files:
-        day_df = read_and_process_file(year_file, load_with_polars)
+        day_df = read_and_process_tec_file(year_file, load_with_polars)
         DOY = int(year_file.name[DOY_index_start:DOY_index_end])
         day_df["DOY"] = DOY
         day_df["year"] = year
@@ -154,6 +156,29 @@ def load_year_data(
     year_df["datetime"] = create_datetimes(year_df)
     year_df.set_index("datetime", inplace=True)
     return year_df
+
+def load_symh_data(filepath : str | Path, skiprows = 24) -> pd.DataFrame:
+    """
+    Parameters
+    ----------
+    filepath : str | Path
+        file to read SYM-H data.
+    skiprows : int 
+        Default 24
+
+    Returns 
+    -------
+    DataFrame 
+    """
+    ASY_df = pd.read_csv(filepath, skiprows=skiprows, delim_whitespace=True)
+    dt = pd.to_datetime(ASY_df.DATE + "-" + ASY_df.TIME)
+
+    symh = ASY_df[["SYM-H"]].copy()
+    symh.index = dt
+
+    del ASY_df 
+    gc.collect()
+    return symh
 
 
 def fill_missing_days(df: pd.DataFrame) -> pd.DataFrame:
@@ -226,11 +251,33 @@ def create_datetimes(df: pd.DataFrame):
 
     return pd.date_range(start_date, end_date, freq=timedelta(0, delta_t))
 
+def basic_stats(series : pd.Series) -> plt.Axes:
+    """
+    Imprimir Tamaño de la serie, porcentaje y número de NaNs.
+    Plotear gráfica que muestre los NaNs a lo largo del tiempo.
+    Plotear histograma.
+    """
+    n_nan = series.isna().sum()
+    nan_ratio = n_nan/series.size
+    print(f"Tamaño de la serie: {series.size}")
+    print(f"Porcentaje de NaNs: {nan_ratio:.3%}")
+    print(f"{n_nan} NaNs y {(series.size - n_nan)} Valores no nulos.")
+    
+
+    _, axs = plt.subplots(2)
+    axs[0].plot(series.isna().astype(int))
+    axs[0].set_yticks([0, 1], ["Number", "NaN"])
+
+    axs[1].hist(series, bins=256)
+
+    return axs
+
+
 
 if __name__ == "__main__":
     year = 2000
     datafolder = Path("tucu/")
-    df = load_year_data(year, datafolder)
+    df = load_tec_data(year, datafolder)
 
     DOYs = df.DOY.unique()
     print("DOYs size :", DOYs.size)
