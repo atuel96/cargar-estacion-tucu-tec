@@ -78,8 +78,8 @@ def read_and_process_tec_file(
 
     df_vTEC = df_vTEC.loc[:, ["seconds", "TEC"]].drop_duplicates()
 
-    # Look for negative TEC values
-    negative_TEC = df_vTEC.loc[df_vTEC["TEC"] < 0, "TEC"]
+    # Look for negative or zero TEC values
+    negative_TEC = df_vTEC.loc[df_vTEC["TEC"] <= 0, "TEC"]
     negative_values = negative_TEC.count()
     if negative_values:
         df_vTEC.loc[df_vTEC["TEC"] < 0, "TEC"] = None
