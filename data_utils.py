@@ -272,6 +272,41 @@ def basic_stats(series : pd.Series) -> plt.Axes:
 
     return axs
 
+def load_symh_wdc(filepath : str | Path) -> pd.DataFrame:
+    """
+    Load SYM and ASY from file with WDC format.
+
+    Parameters
+    ----------
+    filepath : str | Path
+        plain text file with WDC format
+    
+    Returns
+    -------
+    DataFrame
+
+    """
+    columns = ["year", "month", "day", "component", "hour UT", "index", *[str(i) for i in range(1, 61)], "hour mean"]
+    data = {c:[] for c in columns}
+
+    filepath = Path(filepath)
+
+    with filepath.open("r") as f:
+        for line in f.readlines():
+            data["year"].append(line[12:14])
+            data["month"].append(line[14:16])
+            data["day"].append(line[16:18])
+            data["component"].append(line[18:19])
+            data["hour UT"].append(line[19:21])
+            data["index"].append(line[21:24])
+
+            last_values = line[34:].split()
+            for i, val in enumerate(last_values[:-1]):
+                data[str(i+1)].append(val)
+            data["hour mean"].append(last_values[-1])
+
+    return pd.DataFrame(data)
+
 
 
 if __name__ == "__main__":
