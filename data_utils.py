@@ -159,6 +159,7 @@ def load_tec_data(
 
 def load_symh_data(filepath : str | Path, skiprows = 24) -> pd.DataFrame:
     """
+    DEPRECATED FUNCTION
     Parameters
     ----------
     filepath : str | Path
@@ -304,9 +305,53 @@ def load_symh_wdc(filepath : str | Path) -> pd.DataFrame:
             for i, val in enumerate(last_values[:-1]):
                 data[str(i+1)].append(val)
             data["hour mean"].append(last_values[-1])
+    df = pd.DataFrame(data)
 
-    return pd.DataFrame(data)
+    symh_df = df.loc[(df["index"] == "SYM") & (df["component"] == "H")]
+    
+    #
+    minutes = [i+1 for i in range(60)]
+    all_symh = []
+    all_minutes = []
+    all_hours = []
+    all_months = []
+    all_years = []
+    all_days = []
 
+    # expand minutess
+
+    for _, row in symh_df.iterrows():
+        for min in minutes:
+            all_minutes.append(min-1)
+            all_symh.append(int(row[str(min)]))
+            all_hours.append(int(row["hour UT"]))
+            all_months.append(int(row["month"]))
+            all_years.append(2000 + int(row["year"]))
+            all_days.append(int(row["day"]))
+
+    final_df = pd.DataFrame({"year" : all_years,
+                             "month" : all_months,
+                             "day" : all_days,
+                             "hour" : all_hours,
+                             "minute" : all_minutes,
+                             "symh" : all_symh})
+    
+    # add datetimes
+    delta_t = timedelta(0, 60)
+    start_date = datetime(year=final_df.iloc[0]["year"], 
+                        month=final_df.iloc[0]["month"],
+                        day=final_df.iloc[0]["day"], 
+                        hour=final_df.iloc[0]["hour"],
+                        minute=final_df.iloc[0]["minute"])
+    end_date = datetime(year=final_df.iloc[-1]["year"], 
+                        month=final_df.iloc[-1]["month"],
+                        day=final_df.iloc[-1]["day"], 
+                        hour=final_df.iloc[-1]["hour"],
+                        minute=final_df.iloc[-1]["minute"])
+    dts = pd.date_range(start_date, end_date, freq=delta_t)
+    final_df["datetime"] = dts
+    final_df.set_index("datetime", inplace=True)
+    return final_df.loc[:,["symh"]]
 
 
 if __name__ == "__main__":
