@@ -60,14 +60,14 @@ def read_and_process_tec_file(
             has_header=False,
             columns=[0, 1, 7],
         ).to_pandas()
-        df.columns = ["seconds", "alpha", "TEC"]
+        df.columns = ["seconds", "alpha", "tec"]
     else:
         df = pd.read_csv(
             filepath,
             sep=" ",
             header=None,
             usecols=[0, 1, 7],
-            names=["seconds", "alpha", "TEC"],
+            names=["seconds", "alpha", "tec"],
         )
     df_vTEC = df.query("alpha == 'Z00'")  # take just vTEC
 
@@ -76,13 +76,13 @@ def read_and_process_tec_file(
     if n_duplicated_values:
         logging.info(f"{n_duplicated_values} duplicated values inf file {filepath}.")
 
-    df_vTEC = df_vTEC.loc[:, ["seconds", "TEC"]].drop_duplicates()
+    df_vTEC = df_vTEC.loc[:, ["seconds", "tec"]].drop_duplicates()
 
     # Look for negative or zero TEC values
-    negative_TEC = df_vTEC.loc[df_vTEC["TEC"] <= 0, "TEC"]
+    negative_TEC = df_vTEC.loc[df_vTEC["tec"] <= 0, "tec"]
     negative_values = negative_TEC.count()
     if negative_values:
-        df_vTEC.loc[df_vTEC["TEC"] < 0, "TEC"] = None
+        df_vTEC.loc[df_vTEC["tec"] < 0, "tec"] = None
         logging.info(
             f"{negative_values} TEC negative values were replaced by NaNs for file {filepath}."
         )  # Info
@@ -97,7 +97,7 @@ def read_and_process_tec_file(
     merged_df.sort_values("seconds", inplace=True)
     merged_df.reset_index(drop=True, inplace=True)
 
-    return merged_df[["seconds", "TEC"]]
+    return merged_df[["seconds", "tec"]]
 
 
 def create_seconds_df(delta_t: int) -> pd.DataFrame:
@@ -155,7 +155,7 @@ def load_tec_data(
     year_df.sort_values(["DOY", "seconds"], inplace=True)
     year_df["datetime"] = create_datetimes(year_df)
     year_df.set_index("datetime", inplace=True)
-    return year_df
+    return year_df.loc[:,["tec"]]
 
 def load_symh_data(filepath : str | Path, skiprows = 24) -> pd.DataFrame:
     """
