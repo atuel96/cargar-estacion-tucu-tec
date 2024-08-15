@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import gc
 
 
-
 def get_tec_year_files(year: int, datafolder: str | Path):
     """
     Parameters
@@ -135,6 +134,9 @@ def load_tec_data(
 
     year_files = get_tec_year_files(year, datafolder)
 
+    if len(year_files) == 0:
+        raise FileNotFoundError(f"No files found for year {year}.")
+
     # read year files
     DOY_index_start = -7
     DOY_index_end = -4
@@ -155,21 +157,22 @@ def load_tec_data(
     year_df.sort_values(["DOY", "seconds"], inplace=True)
     year_df["datetime"] = create_datetimes(year_df)
     year_df.set_index("datetime", inplace=True)
-    return year_df.loc[:,["tec"]]
+    return year_df.loc[:, ["tec"]]
 
-def load_symh_data(filepath : str | Path, skiprows = 24) -> pd.DataFrame:
+
+def load_symh_data(filepath: str | Path, skiprows=24) -> pd.DataFrame:
     """
     DEPRECATED FUNCTION
     Parameters
     ----------
     filepath : str | Path
         file to read SYM-H data.
-    skiprows : int 
+    skiprows : int
         Default 24
 
-    Returns 
+    Returns
     -------
-    DataFrame 
+    DataFrame
     """
     ASY_df = pd.read_csv(filepath, skiprows=skiprows, delim_whitespace=True)
     dt = pd.to_datetime(ASY_df.DATE + "-" + ASY_df.TIME)
@@ -177,7 +180,7 @@ def load_symh_data(filepath : str | Path, skiprows = 24) -> pd.DataFrame:
     symh = ASY_df[["SYM-H"]].copy()
     symh.index = dt
 
-    del ASY_df 
+    del ASY_df
     gc.collect()
     return symh
 
@@ -252,20 +255,20 @@ def create_datetimes(df: pd.DataFrame):
 
     return pd.date_range(start_date, end_date, freq=timedelta(0, delta_t))
 
-def basic_stats(series : pd.Series) -> plt.Axes:
+
+def basic_stats(series: pd.Series) -> plt.Axes:
     """
     Imprimir Tamaño de la serie, porcentaje y número de NaNs.
     Plotear gráfica que muestre los NaNs a lo largo del tiempo.
     Plotear histograma.
     """
     n_nan = series.isna().sum()
-    nan_ratio = n_nan/series.size
+    nan_ratio = n_nan / series.size
     print(f"Tamaño de la serie: {series.size}")
     print(f"Porcentaje de NaNs: {nan_ratio:.3%}")
     print(f"{n_nan} NaNs y {(series.size - n_nan)} Valores no nulos.")
-    
 
-    _, axs = plt.subplots(2)
+    fig, axs = plt.subplots(2)
     axs[0].plot(series.isna().astype(int))
     axs[0].set_yticks([0, 1], ["Number", "NaN"])
 
@@ -273,7 +276,8 @@ def basic_stats(series : pd.Series) -> plt.Axes:
 
     return axs
 
-def load_symh_wdc(filepath : str | Path) -> pd.DataFrame:
+
+def load_symh_wdc(filepath: str | Path) -> pd.DataFrame:
     """
     Load SYM and ASY from file with WDC format.
 
@@ -281,14 +285,23 @@ def load_symh_wdc(filepath : str | Path) -> pd.DataFrame:
     ----------
     filepath : str | Path
         plain text file with WDC format
-    
+
     Returns
     -------
     DataFrame
 
     """
-    columns = ["year", "month", "day", "component", "hour UT", "index", *[str(i) for i in range(1, 61)], "hour mean"]
-    data = {c:[] for c in columns}
+    columns = [
+        "year",
+        "month",
+        "day",
+        "component",
+        "hour UT",
+        "index",
+        *[str(i) for i in range(1, 61)],
+        "hour mean",
+    ]
+    data = {c: [] for c in columns}
 
     filepath = Path(filepath)
 
@@ -303,14 +316,14 @@ def load_symh_wdc(filepath : str | Path) -> pd.DataFrame:
 
             last_values = line[34:].split()
             for i, val in enumerate(last_values[:-1]):
-                data[str(i+1)].append(val)
+                data[str(i + 1)].append(val)
             data["hour mean"].append(last_values[-1])
     df = pd.DataFrame(data)
 
     symh_df = df.loc[(df["index"] == "SYM") & (df["component"] == "H")]
-    
+
     #
-    minutes = [i+1 for i in range(60)]
+    minutes = [i + 1 for i in range(60)]
     all_symh = []
     all_minutes = []
     all_hours = []
@@ -322,36 +335,44 @@ def load_symh_wdc(filepath : str | Path) -> pd.DataFrame:
 
     for _, row in symh_df.iterrows():
         for min in minutes:
-            all_minutes.append(min-1)
+            all_minutes.append(min - 1)
             all_symh.append(int(row[str(min)]))
             all_hours.append(int(row["hour UT"]))
             all_months.append(int(row["month"]))
             all_years.append(2000 + int(row["year"]))
             all_days.append(int(row["day"]))
 
-    final_df = pd.DataFrame({"year" : all_years,
-                             "month" : all_months,
-                             "day" : all_days,
-                             "hour" : all_hours,
-                             "minute" : all_minutes,
-                             "symh" : all_symh})
-    
+    final_df = pd.DataFrame(
+        {
+            "year": all_years,
+            "month": all_months,
+            "day": all_days,
+            "hour": all_hours,
+            "minute": all_minutes,
+            "symh": all_symh,
+        }
+    )
+
     # add datetimes
     delta_t = timedelta(0, 60)
-    start_date = datetime(year=final_df.iloc[0]["year"], 
-                        month=final_df.iloc[0]["month"],
-                        day=final_df.iloc[0]["day"], 
-                        hour=final_df.iloc[0]["hour"],
-                        minute=final_df.iloc[0]["minute"])
-    end_date = datetime(year=final_df.iloc[-1]["year"], 
-                        month=final_df.iloc[-1]["month"],
-                        day=final_df.iloc[-1]["day"], 
-                        hour=final_df.iloc[-1]["hour"],
-                        minute=final_df.iloc[-1]["minute"])
+    start_date = datetime(
+        year=final_df.iloc[0]["year"],
+        month=final_df.iloc[0]["month"],
+        day=final_df.iloc[0]["day"],
+        hour=final_df.iloc[0]["hour"],
+        minute=final_df.iloc[0]["minute"],
+    )
+    end_date = datetime(
+        year=final_df.iloc[-1]["year"],
+        month=final_df.iloc[-1]["month"],
+        day=final_df.iloc[-1]["day"],
+        hour=final_df.iloc[-1]["hour"],
+        minute=final_df.iloc[-1]["minute"],
+    )
     dts = pd.date_range(start_date, end_date, freq=delta_t)
     final_df["datetime"] = dts
     final_df.set_index("datetime", inplace=True)
-    return final_df.loc[:,["symh"]]
+    return final_df.loc[:, ["symh"]]
 
 
 if __name__ == "__main__":
