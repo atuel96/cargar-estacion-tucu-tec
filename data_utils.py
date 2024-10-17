@@ -9,6 +9,78 @@ from datetime import datetime, timedelta
 import gc
 
 
+class TECDataFrame:
+    def __init__(self, df: pd.DataFrame):
+        self.df = df
+
+    def __getitem__(self, index):
+        sliced_df = self.df.__getitem__(index)
+        return TECDataFrame(sliced_df)
+
+    def __getattr__(self, name: str):
+
+        temp_return = getattr(self.df, name)
+        if isinstance(temp_return, pd.DataFrame):
+            return TECDataFrame(temp_return)
+        return temp_return
+
+    def __repr__(self) -> str:
+        return repr(self.df)
+
+    def _repr_html_(self):
+        return self.df._repr_html_()
+
+    def hist_nan(self, figsize=None, bins=48, **plotkwargs) -> tuple:
+        """
+        Plots the hourly distribution of NaNs
+        """
+        nan_dts = self.df.loc[self.df.tec.isna()].index
+        nan_dts_hours = nan_dts.hour + nan_dts.minute / 60
+
+        fig, ax = plt.subplots(figsize=figsize)
+        hist = ax.hist(nan_dts_hours, bins=bins, **plotkwargs)
+        ax.set_xlabel("Hour of the day")
+        ax.set_ylabel("No. of NaNs")
+        ax.set_title("Distribution of NaNs")
+
+        return hist, ax
+
+    @property
+    def n_nan(self):
+        return self.df.tec.isna().sum()
+
+    @property
+    def days_covered(self):
+        return self.df.index.day_of_year.nunique()
+
+    def plot_basic_stats(self, figsize=None, **plotkwargs) -> plt.Axes:
+        """
+        Imprimir Tamaño de la serie, porcentaje y número de NaNs.
+        Plotear gráfica que muestre los NaNs a lo largo del tiempo.
+        Plotear histograma.
+        """
+        n_nan = self.n_nan
+        nan_ratio = n_nan / self.df.tec.size
+        print(f"Total size: {self.df.tec.size}")
+        print(f"Number of NaNs: {n_nan}")
+        print(f"Real Values: {self.df.tec.size - n_nan}")
+        print(f"Porcentage of NaNs: {nan_ratio:.3%}")
+        print(f"Days Covered: {self.days_covered}")
+        # print(f"{n_nan} NaNs y {(self.df.tec.size - n_nan)} Valores no nulos.")
+
+        fig, axs = plt.subplots(2, figsize=figsize)
+        axs[0].plot(self.df.tec.isna().astype(int), **plotkwargs)
+        axs[0].set_xticks(axs[0].get_xticks(), axs[0].get_xticklabels(), rotation=45)
+        axs[0].set_yticks([0, 1], ["Number", "NaN"])
+
+        axs[1].hist(self.df.tec, bins=256, **plotkwargs)
+
+        return axs
+
+    def to_pandas_df(self):
+        return self.df
+
+
 def get_tec_year_files(year: int, datafolder: str | Path):
     """
     Parameters
@@ -114,7 +186,7 @@ def create_seconds_df(delta_t: int) -> pd.DataFrame:
 
 def load_tec_data(
     year: int, datafolder: str | Path, load_with_polars=True
-) -> pd.DataFrame:
+) -> TECDataFrame:
     """
     Parameters
     ----------
@@ -129,7 +201,7 @@ def load_tec_data(
 
     Returns
     -------
-    DataFrame : Pandas Dataframe with 'year', 'DOY', 'seconds' & 'TEC' columns.
+    TECDataFrame.
     """
 
     year_files = get_tec_year_files(year, datafolder)
@@ -143,7 +215,11 @@ def load_tec_data(
     year_df = pd.DataFrame()  # Initialize
 
     for year_file in year_files:
-        day_df = read_and_process_tec_file(year_file, load_with_polars)
+        try:
+            day_df = read_and_process_tec_file(year_file, load_with_polars)
+        except pl.NoDataError as e:
+            print(e, f"{year_file} has no data")
+            continue
         DOY = int(year_file.name[DOY_index_start:DOY_index_end])
         day_df["DOY"] = DOY
         day_df["year"] = year
@@ -157,7 +233,7 @@ def load_tec_data(
     year_df.sort_values(["DOY", "seconds"], inplace=True)
     year_df["datetime"] = create_datetimes(year_df)
     year_df.set_index("datetime", inplace=True)
-    return year_df.loc[:, ["tec"]]
+    return TECDataFrame(year_df.loc[:, ["tec"]])
 
 
 def load_symh_data(filepath: str | Path, skiprows=24) -> pd.DataFrame:
@@ -206,6 +282,7 @@ def fill_missing_days(df: pd.DataFrame) -> pd.DataFrame:
             )
             df_day["DOY"] = day
             temp_df = pd.merge(temp_df, df_day, how="outer", on=["DOY", "seconds"])
+            temp_df.year.fillna(year, inplace=True)
 
     return temp_df
 
