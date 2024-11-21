@@ -64,4 +64,4 @@ if __name__ == "__main__":
 
     years = []
     for year in years:
-        data = download_asym_year(year)
+        download_asym_year(year)
