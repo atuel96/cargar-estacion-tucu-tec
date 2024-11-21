@@ -2,12 +2,25 @@
 Scripts y notebooks para cargar datos TEC de la estación TUCU
 
 
-## Notas
+# API example
 
-* Año 2000: Los días empiezan a contar desde los 60 segundos.
-* Año 2017: Solo tenemos mitad de año.
+``` python
+from downloader import download_asym_year
+from data_utils import load_symh_wdc, load_tec_data
 
-## TO DO
+# Download 1 year of ASYM
+year = 2000
+download_asym_year(year) # file ASY-SYM-WDCformat-<year>.dat created
 
-* Resample to 60s
-* Inpute missing data if gaps are "shorts"
+# Load only SYMH 
+symh_year = load_symh_wdc(f"ASY-SYM-WDCformat-{year}.dat")
+
+# TEC
+tec_year = load_tec_data(year, "data")
+
+# Merge both
+df = pd.merge(left=tec_year, 
+         right=symh_year, 
+         right_on=symh_year.index, 
+         how="left",left_index=True).loc[:,["tec", "symh"]]
+```
