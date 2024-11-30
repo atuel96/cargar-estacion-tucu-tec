@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from pathlib import Path
-import polars as pl
+
 import matplotlib.pyplot as plt
 
 import logging
@@ -125,6 +125,8 @@ def read_and_process_tec_file(
     DataFrame : Pandas Dataframe with 'seconds' & 'TEC' columns.
     """
     if load_with_polars:
+        import polars as pl
+
         df = pl.read_csv(
             filepath,
             separator=" ",
@@ -203,6 +205,8 @@ def load_tec_data(
     -------
     TECDataFrame.
     """
+    if load_with_polars:
+        import polars as pl
 
     year_files = get_tec_year_files(year, datafolder)
 
@@ -452,21 +456,69 @@ def load_symh_wdc(filepath: str | Path) -> pd.DataFrame:
     return final_df.loc[:, ["symh"]]
 
 
+def parse_dst_wdf_file(filepath):
+    """
+    Format Reference: https://wdc.kugi.kyoto-u.ac.jp/dstae/format/dstformat.html
+    """
+
+    with open(filepath, "r") as dst_file:
+        rows = dst_file.readlines()
+
+    dfs = []
+    for row in rows:
+        dfs.append(parse_dst_wdf_row(row))
+
+    return pd.concat(dfs)
+
+
+def parse_dst_wdf_row(row):
+    """
+    Format Reference: https://wdc.kugi.kyoto-u.ac.jp/dstae/format/dstformat.html
+    """
+    if row[:3].lower() != "dst":
+        raise ValueError(f"Row stats with '{row[:3]}' but should start with 'DST'")
+
+    # Datetime
+    year_start = row[14:16]
+    if not year_start.strip():
+        year_start = "19"
+    year_end = row[3:5]
+    month = row[5:7]
+    day = row[8:10]
+    datestamp = datetime(
+        year=int(year_start + year_end), month=int(month), day=int(day)
+    )
+
+    # hourly values
+    hourly_values = [int(row[i : i + 4]) for i in range(20, 116, 4)]
+
+    dates = pd.date_range(start=datestamp, freq="1h", periods=24)
+
+    return pd.DataFrame({"dst": hourly_values}, index=dates).replace(9999, None)
+
+
 if __name__ == "__main__":
+
+    dst = parse_dst_wdf_file("DST-WDCformat-2000-01-2000-01.dat")
+    print(dst)
+
+    dst.plot()
+    plt.savefig("asd.png")
+
     year = 2000
     datafolder = Path("tucu/")
-    df = load_tec_data(year, datafolder)
+    # df = load_tec_data(year, datafolder)
 
-    DOYs = df.DOY.unique()
-    print("DOYs size :", DOYs.size)
-    print(DOYs.min(), DOYs.max())
-    for day in range(1, DOYs.max()):
-        if not day in DOYs:
-            print("FALTA", day)
+    # DOYs = df.DOY.unique()
+    # print("DOYs size :", DOYs.size)
+    ##print(DOYs.min(), DOYs.max())
+    # for day in range(1, DOYs.max()):
+    #    if not day in DOYs:
+    #        print("FALTA", day)
 
-    print("len df", len(df))
+    # print("len df", len(df))
     # print(df[df["DOY"] == 1])
 
     # make dts
 
-    print(df[df["DOY"] == 125])
+    # print(df[df["DOY"] == 125])
