@@ -358,6 +358,109 @@ def basic_stats(series: pd.Series) -> plt.Axes:
     return axs
 
 
+def parse_sym_asy_wdc(
+    filepath: str | Path,
+    index: str = "SYM",
+    component: str = "H",
+) -> pd.DataFrame:
+    """
+    Load SYM and ASY from file with WDC format.
+
+    Parameters
+    ----------
+    filepath : str | Path
+        plain text file with WDC format
+
+    Returns
+    -------
+    DataFrame
+
+    """
+    columns = [
+        "year",
+        "month",
+        "day",
+        "component",
+        "hour UT",
+        "index",
+        *[str(i) for i in range(1, 61)],
+        "hour mean",
+    ]
+    data = {c: [] for c in columns}
+
+    filepath = Path(filepath)
+
+    with filepath.open("r") as f:
+        for line in f.readlines():
+            data["year"].append(line[12:14])
+            data["month"].append(line[14:16])
+            data["day"].append(line[16:18])
+            data["component"].append(line[18:19])
+            data["hour UT"].append(line[19:21])
+            data["index"].append(line[21:24])
+
+            last_values = line[34:].split()
+            for i, val in enumerate(last_values[:-1]):
+                data[str(i + 1)].append(val)
+            data["hour mean"].append(last_values[-1])
+    df = pd.DataFrame(data)
+
+    symh_df = df.loc[
+        (df["index"] == index.upper()) & (df["component"] == component.upper())
+    ]
+
+    minutes = [i + 1 for i in range(60)]
+    all_symh = []
+    all_minutes = []
+    all_hours = []
+    all_months = []
+    all_years = []
+    all_days = []
+
+    # expand minutess
+
+    for _, row in symh_df.iterrows():
+        for min in minutes:
+            all_minutes.append(min - 1)
+            all_symh.append(int(row[str(min)]))
+            all_hours.append(int(row["hour UT"]))
+            all_months.append(int(row["month"]))
+            all_years.append(2000 + int(row["year"]))
+            all_days.append(int(row["day"]))
+
+    final_df = pd.DataFrame(
+        {
+            "year": all_years,
+            "month": all_months,
+            "day": all_days,
+            "hour": all_hours,
+            "minute": all_minutes,
+            f"{index.lower()}{component.lower()}": all_symh,
+        }
+    )
+
+    # add datetimes
+    delta_t = timedelta(0, 60)
+    start_date = datetime(
+        year=final_df.iloc[0]["year"],
+        month=final_df.iloc[0]["month"],
+        day=final_df.iloc[0]["day"],
+        hour=final_df.iloc[0]["hour"],
+        minute=final_df.iloc[0]["minute"],
+    )
+    end_date = datetime(
+        year=final_df.iloc[-1]["year"],
+        month=final_df.iloc[-1]["month"],
+        day=final_df.iloc[-1]["day"],
+        hour=final_df.iloc[-1]["hour"],
+        minute=final_df.iloc[-1]["minute"],
+    )
+    dts = pd.date_range(start_date, end_date, freq=delta_t)
+    final_df["datetime"] = dts
+    final_df.set_index("datetime", inplace=True)
+    return final_df.loc[:, [f"{index.lower()}{component.lower()}"]]
+
+
 def load_symh_wdc(filepath: str | Path) -> pd.DataFrame:
     """
     Load SYM and ASY from file with WDC format.
@@ -403,7 +506,6 @@ def load_symh_wdc(filepath: str | Path) -> pd.DataFrame:
 
     symh_df = df.loc[(df["index"] == "SYM") & (df["component"] == "H")]
 
-    #
     minutes = [i + 1 for i in range(60)]
     all_symh = []
     all_minutes = []
@@ -495,6 +597,46 @@ def parse_dst_wdf_row(row):
     dates = pd.date_range(start=datestamp, freq="1h", periods=24)
 
     return pd.DataFrame({"dst": hourly_values}, index=dates).replace(9999, None)
+
+
+def parse_f10_7_sn_file(filepath):
+    with open(filepath, "r") as file:
+        rows = file.readlines()
+
+    f10_7 = []
+    sn = []
+    datestamp = []
+    for row in rows:
+        if row[0] == "#":
+            continue
+        row_elements = row.split()
+        f10_7.append(float(row_elements[-2]))
+        sn.append(int(row_elements[-4]))
+        # datestamp.append(datetime(*(list(map(row_elements[:3], int)))))
+        datestamp.append(datetime.strptime("-".join(row_elements[:3]), "%Y-%m-%d"))
+
+    return pd.DataFrame({"sn": sn, "f10_7": f10_7}, index=datestamp).replace(-1, np.nan)
+
+
+def parse_kp_ap_file(filepath):
+    with open(filepath, "r") as file:
+        rows = file.readlines()
+
+    kp = []
+    ap = []
+    datestamp = []
+    for row in rows:
+        if row[0] == "#":
+            continue
+        row_elements = row.split()
+        kp.append(float(row_elements[-3]))
+        ap.append(float(row_elements[-2]))
+        # datestamp.append(datetime(*(list(map(row_elements[:3], int)))))
+        datestamp.append(
+            datetime.strptime("-".join(row_elements[:4]), "%Y-%m-%d-%H.%M")
+        )
+
+    return pd.DataFrame({"kp": kp, "ap": ap}, index=datestamp).replace(-1, np.nan)
 
 
 if __name__ == "__main__":
