@@ -60,8 +60,50 @@ def download_asym(start_date, end_date, folderpath=Path(""), filename=None):
     return response.text
 
 
+def download_dst(start_date, end_date, folderpath=Path(""), filename=None):
+    """
+    Format Description: https://wdc.kugi.kyoto-u.ac.jp/dstae/format/dstformat.html
+    """
+    start_year, start_month = start_date.strftime("%Y-%m").split("-")
+    end_year, end_month = end_date.strftime("%Y-%m").split("-")
+
+    SCent = start_year[:2]  # "20"
+    STens = start_year[2]  # "0"
+    SYear = start_year[-1]  # "0"
+    SMonth = start_month  # "01"
+    ECent = end_year[:2]  # "20"
+    ETens = end_year[2]  # 0
+    EYear = end_year[-1]  # 0
+    EMonth = end_month  # "01"
+
+    url = (
+        f"https://wdc.kugi.kyoto-u.ac.jp/cgi-bin/dstae-cgi?SCent={SCent}&"
+        f"STens={STens}&SYear={SYear}&SMonth={SMonth}&ECent={ECent}&ETens="
+        f"{ETens}&EYear={EYear}&EMonth={EMonth}&Image+Type=GIF&COLOR=COLOR&AE"
+        f"+Sensitivity=0&Dst+Sensitivity=0&Output=DST&Out+format=W"
+    )
+
+    response = requests.get(url)
+    if response.status_code != 200:
+        raise DownloadFailed("Download Failed, check url")
+
+    filename = (
+        filename
+        or f"DST-WDCformat-{start_date.strftime('%Y-%m')}-{end_date.strftime('%Y-%m')}.dat"
+    )
+    with open(
+        Path(folderpath) / filename,
+        "w",
+    ) as f:
+        f.write(response.text)
+
+    return response.text
+
+
 if __name__ == "__main__":
 
     years = []
-    for year in years:
-        download_asym_year(year)
+    # for year in years:
+    #    download_asym_year(year)
+
+    download_dst(datetime(2017, 1, 1), datetime(2017, 12, 31), folderpath="raw_data")
